@@ -143,7 +143,7 @@ def process_all_files():
         xls = pd.ExcelFile(excel_file)
         num_sheets = len(xls.sheet_names)
 
-        for sheet_index in range(num_sheets):
+        for sheet_index in range(3):
             print(f"  → Sheet {sheet_index}")
 
             df = pd.read_excel(excel_file, sheet_name=sheet_index, header=None)
