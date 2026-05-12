@@ -1,41 +1,96 @@
+import csv
 import pandas as pd
+import math
 
-# 1. Lettura file
-mibs_raw = pd.read_csv("mibs_final_result.csv")
-ils_raw  = pd.read_csv("scalability_results.csv")
+FILE_ILS  = "ils_results.csv"
+FILE_MIBS = "mibs_final_result.csv"
 
-# 2. Selezione colonne MiBs realmente usate
-mibs = mibs_raw[[
-    "instance",
-    "cpu_time_s",
-    "open_hotels",
-    "best_obj"
-]].rename(columns={
-    "open_hotels": "open_hotels_mibs",
-    "best_obj": "best_obj_mibs"
-})
+OUTPUT_FILE = "scalability.csv"
 
-# 3. Selezione colonne ILS realmente usate
-ils = ils_raw[[
-    "instance",
-    "ils_time_s",
-    "delta_pct",
-    "open_hotels",
-    "best_obj",
-    "ll_vars"
-]].rename(columns={
-    "open_hotels": "open_hotels_ils",
-    "best_obj": "best_obj_ils",
-    "ll_vars": "ll_vars_ils"
-})
 
-# 4. Colonna derivata ratio_cpu
-ils["ratio_cpu"] = ils["ils_time_s"] / mibs["cpu_time_s"].values
+def truncate_sig(x, sig=4):
+    if pd.isna(x):
+        return x
+    x = float(x)
+    if x == 0:
+        return 0
+    factor = 10 ** (sig - 1 - int(math.floor(math.log10(abs(x)))))
+    return math.trunc(x * factor) / factor
 
-# 5. Merge finale
-merged = ils.merge(mibs, on="instance")
 
-# 6. Salvataggio CSV finale
-merged.to_csv("merged_ils_mibs.csv", index=False)
+def compute_outcomes():
+    # 1) Caricamento CSV
+    ils_raw  = pd.read_csv(FILE_ILS)
+    mibs_raw = pd.read_csv(FILE_MIBS)
 
-print(" File minimale salvato come merged_ils_mibs_minimal.csv")
+    # 2) Aggiungi colonna instance (intero)
+    ils_raw["instance"] = ils_raw["file"].astype(int)
+    mibs_raw["instance"] = mibs_raw["instance"].astype(int)
+
+    ils = ils_raw[ils_raw["sheet"] == 0].copy()
+
+    # 3) Parsing hotels_selected ("11/12")
+    ils[["ils_hotels", "tot_hotels"]] = ils["hotels_selected"].str.split("/", expand=True)
+    ils["ils_hotels"] = ils["ils_hotels"].astype(int)
+    ils["tot_hotels"] = ils["tot_hotels"].astype(int)
+
+    # 4) Colonne ILS
+    ils = ils.rename(columns={
+        "objective": "ils_obj",
+        "time_sec": "ils_cpu_time",
+        "assignment_cost": "ils_assignment_cost",
+        "misplacement_cost": "ils_misplacement_cost",
+        "contract_cost": "ils_contract_cost"
+    })
+
+
+    ils = ils[[
+        "instance",
+        "ils_obj",
+        "ils_cpu_time",
+        "ils_assignment_cost",
+        "ils_misplacement_cost",
+        "ils_contract_cost",
+        "ils_hotels",
+        "tot_hotels"
+    ]]
+
+    # 5) Colonne MiBs
+    mibs = mibs_raw[[
+        "instance",
+        "cpu_time_s",
+        "open_hotels",
+        "best_obj"
+    ]].copy()
+  
+    mibs = mibs.rename(columns={"cpu_time_s": "mibs_cpu_time"})
+
+    # 6) Merge sulle istanze
+    data = ils.merge(mibs, on="instance")
+    data["instance"] = data["instance"].astype(int)
+
+    # 7) Calcolo colonne derivate
+    lb = data["best_obj"]
+
+    data["ils_gap_from_lb"] = abs(data["ils_obj"] - lb)
+    data["delta_pct"]       = (lb - data["ils_obj"]) / lb * 100
+    data["cpu_ratio"]       = data["ils_cpu_time"] / data["mibs_cpu_time"]
+
+    for col in data.columns:
+        if col not in ["instance", "ils_hotels", "tot_hotels", "open_hotels"]:
+            data[col] = data[col].apply(truncate_sig)
+
+    # 8) Scrittura CSV finale
+    with open(OUTPUT_FILE, "wt", newline="") as f:
+        writer = csv.writer(f)
+        header = list(data.columns)
+        writer.writerow(header)
+
+        for _, row in data.iterrows():
+            writer.writerow([row[col] for col in header])
+
+    print(f"File salvato: {OUTPUT_FILE}")
+
+
+if __name__ == "__main__":
+    compute_outcomes()

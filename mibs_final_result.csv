@@ -1,0 +1,2 @@
+instance,sheet,ul_vars,ll_vars,ul_rows,ll_rows,int_ul_vars,int_ll_vars,n_hotels,open_hotels,branching_strategy,status,nodes_processed,nodes_partial,nodes_branched,nodes_pruned,tree_depth,cpu_time_s,wall_time_s,feasibility_time,vf_time,ub_time,vf_solves,ub_solves,cut_gen_calls,cuts_generated,best_obj,opt_gap_pct,file
+1,0,48,501,63,336,48,48,501,24,Linking,completed,111,67,89,1,48,0.34,0.36,0.2401,0.220948,0.003829,1,1,156,0,26726.094,0.0,mibs_1_sheet0.txt
